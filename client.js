@@ -1,6 +1,8 @@
 const WebSocket = require('ws');
-
 const ws = new WebSocket('ws://localhost:8080');
+const RpcManager = require('./rpc-manager');
+
+const rpcManager = RpcManager();
 
 const name = process.argv[2];
 const secret = process.argv[3];
@@ -16,21 +18,9 @@ if (errors.length > 0) {
 
 const registerMessage = { type: 'REGISTER', name };
     
-function handleRPCAction(message) {
-    const { id, action, args } = message;
-
-    console.log(`From server: action = ${action}, args = ${args}.`);
-    
-    const response = {
-        type: 'RPC_RESPONSE',
-        id,
-        clientName: name,
-        data: secret,
-    };
-
-    const stringifiedResponse = JSON.stringify(response);
-    ws.send(stringifiedResponse);
-}
+const actionMap = {
+    'test-rpc': function() { return secret; },
+};
 
 ws.on('open', () => ws.send(JSON.stringify(registerMessage)));
 
@@ -41,7 +31,7 @@ function router(messageString) {
 
     switch(message.type) {
         case 'RPC_ACTION':
-            handleRPCAction(message);
+            rpcManager.handleRPCAction(ws, name, message, actionMap);
             break;
         
         default:
