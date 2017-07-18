@@ -5,10 +5,13 @@ const socketRegistry = {};
 
 const rpcManager = RpcManager();
 
-
 wss.on('connection', ws => {
     ws.on('message', message => router(ws, message));
 });
+
+const actionMap = {
+    'server-side-procedure': () => "procedure called on server",
+};
 
 function router(ws, messageString) {
     const message = JSON.parse(messageString);
@@ -18,9 +21,16 @@ function router(ws, messageString) {
             socketRegistry[message.name] = ws;
             break;
 
+        case 'RPC_ACTION':
+            rpcManager.handleRPCFromClient(ws, message, actionMap);
+            break;
+
         case 'RPC_RESPONSE':
             rpcManager.handleRPCResponse(message);
             break;
+
+        default:
+            console.log(`Random message: ${message}`);
     }
 }
 
@@ -30,7 +40,7 @@ const intervalId = setInterval(() => {
     for (let clientName in socketRegistry) {
         socket = socketRegistry[clientName];
 
-        rpcManager.sendRPC(socket, clientName, 'test-rpc', [ 'some', 'random', 'data'])
+        rpcManager.sendRPCToClient(socket, clientName, 'test-rpc', [ 'some', 'random', 'data'])
             .then(res => console.log(`RPC response from '${clientName}': ${res}`))
             .catch(err => console.log(`RPC error = ${err}`));
     }

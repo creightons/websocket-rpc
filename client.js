@@ -19,10 +19,18 @@ if (errors.length > 0) {
 const registerMessage = { type: 'REGISTER', name };
     
 const actionMap = {
-    'test-rpc': function() { return secret; },
+    'test-rpc': () => secret,
 };
 
-ws.on('open', () => ws.send(JSON.stringify(registerMessage)));
+ws.on('open', () => {
+    ws.send(JSON.stringify(registerMessage))
+
+    setTimeout(() => {
+        rpcManager.sendRPCToServer(ws, 'server-side-procedure', [ 'test-1', 'test-2' ])
+            .then(res => console.log(`RPC response from server: ${res}`))
+            .catch(err => console.log(`RPC error = ${err}`, err.stack));
+    }, 2000);
+});
 
 ws.on('message', router);
 
@@ -31,9 +39,13 @@ function router(messageString) {
 
     switch(message.type) {
         case 'RPC_ACTION':
-            rpcManager.handleRPCAction(ws, name, message, actionMap);
+            rpcManager.handleRPCFromServer(ws, name, message, actionMap);
             break;
         
+        case 'RPC_RESPONSE':
+            rpcManager.handleRPCResponse(message);
+            break;
+
         default:
             console.log(`Random message: ${message}`);
     }

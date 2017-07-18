@@ -1,4 +1,5 @@
 const { getDeferred } = require('./utils');
+const SERVER_NAME = 'SERVER_PROCESS';
 
 // Object to manage all RPC interactions
 const _RpcManager = {
@@ -13,6 +14,14 @@ const _RpcManager = {
     // Makes keys for stored RPC deferred objects
     getKey(id, client) {
        return  `${id}::${client}`;
+    },
+
+    sendRPCToClient(socket, target, action, args) {
+        return this.sendRPC(socket, target, action, args);
+    },
+
+    sendRPCToServer(socket, action, args) {
+        return this.sendRPC(socket, SERVER_NAME, action, args);
     },
 
     // Sends an RPC action and returns a Promise
@@ -55,11 +64,19 @@ const _RpcManager = {
         deferred.resolve(data);
     },
 
+    handleRPCFromClient(socket, message, actionMap) {
+        this.handleRPCAction(socket, SERVER_NAME, message, actionMap);
+    },
+
+    handleRPCFromServer(socket, clientName, message, actionMap) {
+        this.handleRPCAction(socket, clientName, message, actionMap);
+    },
+
     // Calls the requested action in the actionMap and returns the result
     handleRPCAction(socket, appName, message, actionMap) {
         const { id, target, action, args } = message;
 
-        console.log(`From ${target}: action = ${action}, args = ${args}.`);
+        console.log(`Executor: ${target}, action: ${action}, args: ${args}.`);
         
         const result = actionMap[action]();
 
