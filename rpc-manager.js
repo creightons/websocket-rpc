@@ -1,5 +1,7 @@
 const { getDeferred } = require('./utils');
 const SERVER_NAME = 'SERVER_PROCESS';
+const RPC_ACTION = 'RPC_ACTION';
+const RPC_RESPONSE = 'RPC_RESPONSE';
 
 // Object to manage all RPC interactions
 const _RpcManager = {
@@ -28,7 +30,7 @@ const _RpcManager = {
     sendRPC(socket, target, action, args) {
         const rpcMessage = {
             id: this.messageId,
-            type: 'RPC_ACTION',
+            type: RPC_ACTION,
             action,
             target,
             args,
@@ -81,7 +83,7 @@ const _RpcManager = {
         const result = actionMap[action]();
 
         const response = {
-            type: 'RPC_RESPONSE',
+            type: RPC_RESPONSE,
             id,
             target: appName,
             data: result,
@@ -89,6 +91,44 @@ const _RpcManager = {
 
         const stringifiedResponse = JSON.stringify(response);
         socket.send(stringifiedResponse);
+    },
+
+    clientRouter(ws, name, messageString, actionMap) {
+        const message = JSON.parse(messageString);
+
+        switch(message.type) {
+            case RPC_ACTION:
+                this.handleRPCFromServer(ws, name, message, actionMap);
+                break;
+
+            case RPC_RESPONSE:
+                this.handleRPCResponse(message);
+                break;
+
+            default:
+                console.log(`Random message: ${message}`);
+        }
+    },
+
+    serverRouter(ws, messageString, socketRegistry, actionMap) {
+        const message = JSON.parse(messageString);
+
+        switch(message.type) {
+            case 'REGISTER':
+                socketRegistry[message.name] = ws;
+                break;
+
+            case RPC_ACTION:
+                this.handleRPCFromClient(ws, message, actionMap);
+                break;
+
+            case RPC_RESPONSE:
+                this.handleRPCResponse(message);
+                break;
+
+            default:
+                console.log(`Random message: ${message}`);
+        }
     }
 };
 

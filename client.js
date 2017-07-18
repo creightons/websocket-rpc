@@ -32,21 +32,4 @@ ws.on('open', () => {
     }, 2000);
 });
 
-ws.on('message', router);
-
-function router(messageString) {
-    const message = JSON.parse(messageString);
-
-    switch(message.type) {
-        case 'RPC_ACTION':
-            rpcManager.handleRPCFromServer(ws, name, message, actionMap);
-            break;
-        
-        case 'RPC_RESPONSE':
-            rpcManager.handleRPCResponse(message);
-            break;
-
-        default:
-            console.log(`Random message: ${message}`);
-    }
-}
+ws.on('message', messageString => rpcManager.clientRouter(ws, name, messageString, actionMap));

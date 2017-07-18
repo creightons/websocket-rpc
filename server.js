@@ -5,35 +5,13 @@ const socketRegistry = {};
 
 const rpcManager = RpcManager();
 
-wss.on('connection', ws => {
-    ws.on('message', message => router(ws, message));
-});
-
 const actionMap = {
     'server-side-procedure': () => "procedure called on server",
 };
 
-function router(ws, messageString) {
-    const message = JSON.parse(messageString);
-
-    switch(message.type) {
-        case 'REGISTER':
-            socketRegistry[message.name] = ws;
-            break;
-
-        case 'RPC_ACTION':
-            rpcManager.handleRPCFromClient(ws, message, actionMap);
-            break;
-
-        case 'RPC_RESPONSE':
-            rpcManager.handleRPCResponse(message);
-            break;
-
-        default:
-            console.log(`Random message: ${message}`);
-    }
-}
-
+wss.on('connection', ws => {
+    ws.on('message', message => rpcManager.serverRouter(ws, message, socketRegistry, actionMap));
+});
 
 const intervalId = setInterval(() => {
     let socket;
