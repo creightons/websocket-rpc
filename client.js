@@ -19,7 +19,7 @@ if (errors.length > 0) {
 const registerMessage = { type: 'REGISTER', name };
     
 const actionMap = {
-    'test-rpc': () => secret,
+    'test-rpc': () => Promise.resolve(secret),
 };
 
 ws.on('open', () => {
@@ -28,6 +28,7 @@ ws.on('open', () => {
     setTimeout(() => {
         rpcManager.sendRPCToServer(ws, 'server-side-procedure', [ 'test-1', 'test-2' ])
             .then(res => console.log(`RPC response from server: ${res}`))
+            .then(() => rpcManager.sendRPCToServer(ws, 'procedure-that-errors', {}))
             .catch(err => console.log(`RPC error = ${err}`, err.stack));
     }, 2000);
 });

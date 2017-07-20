@@ -6,7 +6,8 @@ const socketRegistry = {};
 const rpcManager = RpcManager();
 
 const actionMap = {
-    'server-side-procedure': () => "procedure called on server",
+    'server-side-procedure': () => Promise.resolve("procedure called on server"),
+    'procedure-that-errors': () => Promise.reject('ERROR: This was on purpose'),
 };
 
 wss.on('connection', ws => {

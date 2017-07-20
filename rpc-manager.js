@@ -2,6 +2,7 @@ const { getDeferred } = require('./utils');
 const SERVER_NAME = 'SERVER_PROCESS';
 const RPC_ACTION = 'RPC_ACTION';
 const RPC_RESPONSE = 'RPC_RESPONSE';
+const RPC_ERROR = 'RPC_ERROR';
 
 // Object to manage all RPC interactions
 const _RpcManager = {
@@ -66,6 +67,18 @@ const _RpcManager = {
         deferred.resolve(data);
     },
 
+    handleRPCError(response) {
+        const { id, target, error } = response;
+
+        const key = this.getKey(id, target);
+
+        const deferred = this.rpcRecords[key];
+
+        delete this.rpcRecords[key];
+
+        deferred.reject(error);
+    },
+
     handleRPCFromClient(socket, message, actionMap) {
         this.handleRPCAction(socket, SERVER_NAME, message, actionMap);
     },
@@ -80,17 +93,29 @@ const _RpcManager = {
 
         console.log(`Executor: ${target}, action: ${action}, args: ${args}.`);
         
-        const result = actionMap[action]();
+        actionMap[action]()
+            .then(result => {
+                const response = {
+                    type: RPC_RESPONSE,
+                    id,
+                    target: appName,
+                    data: result,
+                };
 
-        const response = {
-            type: RPC_RESPONSE,
-            id,
-            target: appName,
-            data: result,
-        };
+                const stringifiedResponse = JSON.stringify(response);
+                socket.send(stringifiedResponse);
+            })
+            .catch(error => {
+                const response = {
+                    type: RPC_ERROR,
+                    id,
+                    target: appName,
+                    error,
+                };
 
-        const stringifiedResponse = JSON.stringify(response);
-        socket.send(stringifiedResponse);
+                const stringifiedResponse = JSON.stringify(response);
+                socket.send(stringifiedResponse);
+            });
     },
 
     clientRouter(ws, name, messageString, actionMap) {
@@ -103,6 +128,10 @@ const _RpcManager = {
 
             case RPC_RESPONSE:
                 this.handleRPCResponse(message);
+                break;
+
+            case RPC_ERROR:
+                this.handleRPCError(message);
                 break;
 
             default:
@@ -124,6 +153,10 @@ const _RpcManager = {
 
             case RPC_RESPONSE:
                 this.handleRPCResponse(message);
+                break;
+
+            case RPC_ERROR:
+                this.handleRPCError(message);
                 break;
 
             default:
