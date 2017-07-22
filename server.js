@@ -12,6 +12,15 @@ const actionMap = {
 
 wss.on('connection', ws => {
     ws.on('message', message => rpcManager.serverRouter(ws, message, socketRegistry, actionMap));
+
+    ws.on('close', (args) => {
+        for (let name in socketRegistry) {
+            if (socketRegistry[name] === ws) {
+                delete socketRegistry[name];
+                break;
+            }
+        }
+    });
 });
 
 const intervalId = setInterval(() => {
