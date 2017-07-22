@@ -1,5 +1,4 @@
 const WebSocket = require('ws');
-const ws = new WebSocket('ws://localhost:8080');
 const RpcManager = require('./rpc-manager');
 
 const rpcManager = RpcManager();
@@ -22,15 +21,33 @@ const actionMap = {
     'test-rpc': () => Promise.resolve(secret),
 };
 
-ws.on('open', () => {
-    ws.send(JSON.stringify(registerMessage))
+function setupSocket(socketUrl) {
 
-    setTimeout(() => {
-        rpcManager.sendRPCToServer(ws, 'server-side-procedure', [ 'test-1', 'test-2' ])
-            .then(res => console.log(`RPC response from server: ${res}`))
-            .then(() => rpcManager.sendRPCToServer(ws, 'procedure-that-errors', {}))
-            .catch(err => console.log(`RPC error = ${err}`, err.stack));
-    }, 2000);
-});
 
-ws.on('message', messageString => rpcManager.clientRouter(ws, name, messageString, actionMap));
+    const ws = new WebSocket(serverUrl);
+
+    ws.on('open', () => {
+        ws.send(JSON.stringify(registerMessage))
+
+        setTimeout(() => {
+            rpcManager.sendRPCToServer(ws, 'server-side-procedure', [ 'test-1', 'test-2' ])
+                .then(res => console.log(`RPC response from server: ${res}`))
+                .then(() => rpcManager.sendRPCToServer(ws, 'procedure-that-errors', {}))
+                .catch(err => console.log(`RPC error = ${err}`, err.stack));
+        }, 2000);
+    });
+
+    ws.on('message', messageString => rpcManager.clientRouter(ws, name, messageString, actionMap));
+
+
+    ws.on('error', err => console.log(err));
+
+    const reconnect = () => setTimeout(() => setupSocket(socketUrl), 2000);
+    ws.on('close', () => {
+        rpcManager.clearRpcRecordsForProcess(name);
+        reconnect();
+    });
+}
+
+const serverUrl = 'ws://localhost:8080';
+setupSocket(serverUrl);
