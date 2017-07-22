@@ -19,6 +19,27 @@ const _RpcManager = {
        return  `${id}::${client}`;
     },
 
+    setRpcRecord(id, client, deferredObject) {
+        if (typeof this.rpcRecords[client] !== 'object') {
+            this.rpcRecords[client] = {};
+        }
+        this.rpcRecords[client][id] = deferredObject;
+    },
+
+    getRpcRecord(id, client) {
+        let deferredObject;
+        if (this.rpcRecords[client] && this.rpcRecords[client][id]) {
+            deferredObject = this.rpcRecords[client][id];
+            delete this.rpcRecords[client][id];
+        }
+
+        return deferredObject;
+    },
+
+    clearRpcRecordsForProcess(targetName) {
+        delete this.rpcRecords[targetName];
+    },
+
     sendRPCToClient(socket, target, action, args) {
         return this.sendRPC(socket, target, action, args);
     },
@@ -39,12 +60,11 @@ const _RpcManager = {
         
         this.messageId += 1;
 
-        const key = this.getKey(rpcMessage.id, target);
-
-        // Uses a deferred object so that RPC actions can use promise chains
         const deferred = getDeferred();
 
-        this.rpcRecords[key] = deferred;
+        this.setRpcRecord(rpcMessage.id, target, deferred);
+
+        // Uses a deferred object so that RPC actions can use promise chains
 
         const stringifiedMessage = JSON.stringify(rpcMessage);
 
@@ -57,26 +77,27 @@ const _RpcManager = {
     handleRPCResponse(response) {
         const { id, target, data } = response;
 
-        const key = this.getKey(id, target);
+        const deferred = this.getRpcRecord(id, target);
 
-        const deferred = this.rpcRecords[key];
-
-        // Release the deferred object to prevent memory leaks
-        delete this.rpcRecords[key];
-
-        deferred.resolve(data);
+        if (deferred) {
+            deferred.resolve(data);
+        }
+        else {
+            console.log('Error: received undeclared RPC response');
+        }
     },
 
     handleRPCError(response) {
         const { id, target, error } = response;
 
-        const key = this.getKey(id, target);
+        const deferred = this.getRpcRecord(id, target);
 
-        const deferred = this.rpcRecords[key];
-
-        delete this.rpcRecords[key];
-
-        deferred.reject(error);
+        if (deferred) {
+            deferred.reject(error);
+        }
+        else {
+            console.log('Error: received undeclared RPC error');
+        }
     },
 
     handleRPCFromClient(socket, message, actionMap) {

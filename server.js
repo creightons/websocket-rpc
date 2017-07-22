@@ -17,6 +17,7 @@ wss.on('connection', ws => {
         for (let name in socketRegistry) {
             if (socketRegistry[name] === ws) {
                 delete socketRegistry[name];
+                rpcManager.clearRpcRecordsForProcess(name);
                 break;
             }
         }
