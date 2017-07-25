@@ -3,15 +3,20 @@ const SERVER_NAME = 'SERVER_PROCESS';
 const RPC_ACTION = 'RPC_ACTION';
 const RPC_RESPONSE = 'RPC_RESPONSE';
 const RPC_ERROR = 'RPC_ERROR';
+const REGISTER = 'REGISTER';
 
 // Object to manage all RPC interactions
 const _RpcManager = {
-    init() {
+    init(name, actionMap) {
         // Stores deferred objects generated when an RPC action is sent to a client
         this.rpcRecords = {};
 
         // Tracks all RPC messages sent to clients
         this.messageId = 1;
+        
+        this.name = name;
+
+        this.actionMap = actionMap;
     },
 
     // Makes keys for stored RPC deferred objects
@@ -38,14 +43,6 @@ const _RpcManager = {
 
     clearRpcRecordsForProcess(targetName) {
         delete this.rpcRecords[targetName];
-    },
-
-    sendRPCToClient(socket, target, action, args) {
-        return this.sendRPC(socket, target, action, args);
-    },
-
-    sendRPCToServer(socket, action, args) {
-        return this.sendRPC(socket, SERVER_NAME, action, args);
     },
 
     // Sends an RPC action and returns a Promise
@@ -100,26 +97,18 @@ const _RpcManager = {
         }
     },
 
-    handleRPCFromClient(socket, message, actionMap) {
-        this.handleRPCAction(socket, SERVER_NAME, message, actionMap);
-    },
-
-    handleRPCFromServer(socket, clientName, message, actionMap) {
-        this.handleRPCAction(socket, clientName, message, actionMap);
-    },
-
     // Calls the requested action in the actionMap and returns the result
-    handleRPCAction(socket, appName, message, actionMap) {
+    handleRPCAction(socket, message) {
         const { id, target, action, args } = message;
 
         console.log(`Executor: ${target}, action: ${action}, args: ${args}.`);
         
-        actionMap[action]()
+        this.actionMap[action]()
             .then(result => {
                 const response = {
                     type: RPC_RESPONSE,
                     id,
-                    target: appName,
+                    target: this.name,
                     data: result,
                 };
 
@@ -130,7 +119,7 @@ const _RpcManager = {
                 const response = {
                     type: RPC_ERROR,
                     id,
-                    target: appName,
+                    target: this.name,
                     error,
                 };
 
@@ -139,12 +128,28 @@ const _RpcManager = {
             });
     },
 
-    clientRouter(ws, name, messageString, actionMap) {
+    
+};
+
+
+const _ClientRpcManager = Object.create(_RpcManager);
+
+Object.assign(_ClientRpcManager, {
+    registerWithServer(socket) {
+        const registerMessage = { type: REGISTER, name: this.name };
+        socket.send(JSON.stringify(registerMessage));
+    },
+
+    runRpc(socket, action, args) {
+        return this.sendRPC(socket, SERVER_NAME, action, args);
+    },
+
+    router(ws, messageString) {
         const message = JSON.parse(messageString);
 
         switch(message.type) {
             case RPC_ACTION:
-                this.handleRPCFromServer(ws, name, message, actionMap);
+                this.handleRPCAction(ws, message);
                 break;
 
             case RPC_RESPONSE:
@@ -160,16 +165,26 @@ const _RpcManager = {
         }
     },
 
-    serverRouter(ws, messageString, socketRegistry, actionMap) {
+
+});
+
+const _ServerRpcManager = Object.create(_RpcManager);
+
+Object.assign(_ServerRpcManager, {
+    runRpc(socket, clientName, action, args) {
+        return this.sendRPC(socket, SERVER_NAME, action, args);
+    },
+
+    router(ws, messageString, socketRegistry) {
         const message = JSON.parse(messageString);
 
         switch(message.type) {
-            case 'REGISTER':
+            case REGISTER:
                 socketRegistry[message.name] = ws;
                 break;
 
             case RPC_ACTION:
-                this.handleRPCFromClient(ws, message, actionMap);
+                this.handleRPCAction(ws, message);
                 break;
 
             case RPC_RESPONSE:
@@ -184,12 +199,21 @@ const _RpcManager = {
                 console.log(`Random message: ${message}`);
         }
     }
-};
+});
 
-function RpcManager() {
-    const manager = Object.create(_RpcManager);
-    manager.init();
+function ClientRpcManager(name, actionMap) {
+    const manager = Object.create(_ClientRpcManager);
+    manager.init(name, actionMap);
     return manager;
 }
 
-module.exports = RpcManager;
+function ServerRpcManager(actionMap) {
+    const manager = Object.create(_ServerRpcManager);
+    manager.init(SERVER_NAME, actionMap);
+    return manager;
+}
+
+module.exports = {
+    ClientRpcManager,
+    ServerRpcManager,
+};

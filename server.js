@@ -1,17 +1,18 @@
 const WebSocket = require('ws');
 const wss = new WebSocket.Server({ port: 8080 });
-const RpcManager = require('./rpc-manager');
+const { ServerRpcManager } = require('./rpc-manager');
 const socketRegistry = {};
 
-const rpcManager = RpcManager();
 
 const actionMap = {
     'server-side-procedure': () => Promise.resolve("procedure called on server"),
     'procedure-that-errors': () => Promise.reject('ERROR: This was on purpose'),
 };
 
+const rpcManager = ServerRpcManager(actionMap);
+
 wss.on('connection', ws => {
-    ws.on('message', message => rpcManager.serverRouter(ws, message, socketRegistry, actionMap));
+    ws.on('message', message => rpcManager.router(ws, message, socketRegistry));
 
     ws.on('close', (args) => {
         for (let name in socketRegistry) {
@@ -29,7 +30,7 @@ const intervalId = setInterval(() => {
     for (let clientName in socketRegistry) {
         socket = socketRegistry[clientName];
 
-        rpcManager.sendRPCToClient(socket, clientName, 'test-rpc', [ 'some', 'random', 'data'])
+        rpcManager.runRpc(socket, clientName, 'test-rpc', [ 'some', 'random', 'data'])
             .then(res => console.log(`RPC response from '${clientName}': ${res}`))
             .catch(err => console.log(`RPC error = ${err}`));
     }
